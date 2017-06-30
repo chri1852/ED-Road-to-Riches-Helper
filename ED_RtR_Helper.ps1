@@ -11,6 +11,8 @@
 |                                                              |
 | 06/28/2017 CHRIALE: Created Script.                          |
 |                     Database loading completed.              |
+| 06/29/2017 CHRIALE: Added user settings. started UI.         |
+| 06/30/2017 CHRIALE: Finished UI.                             |
 |                                                              |
 ################################################################>
  
@@ -20,7 +22,6 @@
 $MemDef = @"
 [DllImport("Kernel32.dll")]
 public static extern IntPtr GetConsoleWindow();
-
 [DllImport("user32.dll")]
 public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);
 [DllImport("user32.dll")]
@@ -68,18 +69,6 @@ function NewSystemObject()
 # declares a new planet object.
 function NewPlanetObject()
 {
-    Add-Type -TypeDefinition @"
-    
-    public class PlanetObject
-    {
-        public string Name;
-        public string Distance;
-        public string Type;
-        public string ID;
-        public bool Visited;
-    }
-"@
-  <#  
     $emptyPlanetObject= [PSCustomObject]@{
         Name = ""
         Distance = ""
@@ -87,9 +76,8 @@ function NewPlanetObject()
         ID = ""
         Visited = $false
     }
-    #>
- 
-    return New-Object PlanetObject
+    
+    return $emptyPlanetObject
 }
 
 # Object to hold the current user settings
@@ -104,18 +92,6 @@ function NewUserSettingsObject()
     }
 
     $emptyUserSettingsObject.CurrentSystem.Name = "No System Loaded"
-
-    # DEBUG
-
-        $emptyUserSettingsObject.CurrentSystem.Planets += NewPlanetObject
-        $emptyUserSettingsObject.CurrentSystem.Planets += NewPlanetObject
-
-        $emptyUserSettingsObject.CurrentSystem.Planets[0].Name = "Test 1"
-        $emptyUserSettingsObject.CurrentSystem.Planets[1].Name = "Test 2"
-
-        $emptyUserSettingsObject.CurrentSystem.Planets[1].Visited = $true
-
-    # END DEBUG
 
     return $emptyUserSettingsObject
 }
@@ -144,10 +120,10 @@ $labelFontBig = New-Object System.Drawing.Font("MS Sans Serif", 14)
 $iconPath = "$($PSScriptRoot)\Data\Icon.ico"
 
 # The main Data Objects for the script
-$mainSystemDatabaseObject
+$mainSystemDatabaseObject | Out-Null
 
 # The user settings object
-$mainUserSettingsObject
+$mainUserSettingsObject | Out-Null
  
 #endregion /* Global Form Objects */
  
@@ -222,11 +198,10 @@ function LoadMainUserSettingsObject()
     if(!(Test-Path $userSettingsLocation))
     {
         # If the folder itself does not exist, create it
-        if(!(Test-Path ($userSettingsLocation -replace "\\UserSettings.xml", "")))
+        if(!(Test-Path ($userSettingsLocation -replace "\UserSettings.xml", "")))
         {
             New-Item -ItemType Directory -Path ($userSettingsLocation -replace "\\UserSettings.xml", "") | Out-Null
         }
-
         NewUserSettingsObject | Export-Clixml $userSettingsLocation
     }
 
@@ -244,7 +219,7 @@ function SaveMainSystemDatabaseObject()
 }
 
 # Saves the UserSettingsObject
-function SaveUserSettingsObject()
+function SaveMainUserSettingsObject()
 {
     $userSettingsLocation = "C:\Users\$($env:USERNAME)\AppData\Roaming\ED_RtR_Helper\UserSettings.xml"
 
@@ -252,6 +227,138 @@ function SaveUserSettingsObject()
 }
  
 #endregion /* XML Communicator Functions */
+
+#region /* Helper Functions */
+
+# gets the number of systems left in a route
+function GetSystemsLeft()
+{
+    $count = 0
+
+    foreach($item in $mainUserSettingsObject.CurrentRoute)
+    {
+        if($mainUserSettingsObject.SkipVisited)
+        {
+            if(!$item.Visited)
+            {
+                $count++
+            } 
+        }
+        else
+        {
+            $count++
+        }
+    }
+
+    return "$($count) - Left"
+}
+
+# finds a system in the main DB
+function FindSystemInDataBase($sysName)
+{
+    $returnItem = $null
+
+    foreach($sys in $mainSystemDatabaseObject)
+    {
+        if($sys.Name -eq $sysName)
+        {
+            $returnItem = $sys
+            break
+        }
+    }
+
+    return $returnItem
+}
+
+# sets the display to the current item in the route
+function UpdateDisplayToCurrentData()
+{
+    $mainUserSettingsObject.CurrentSystem = $mainUserSettingsObject.CurrentRoute[0]
+    $numberLeftLabel.Text = "$(GetSystemsLeft)" 
+    $systemLabel.Text = $mainUserSettingsObject.CurrentSystem.Name
+    $systemVisitedCheckbox.Checked = $mainUserSettingsObject.CurrentSystem.Visited
+    $planetListDataGridView.DataSource = $mainUserSettingsObject.CurrentSystem.Planets
+}
+
+# finds and replaces the given system in the db
+funciton FindAndReplaceSystem($systemObject)
+{
+    foreach($sys in $mainSystemDatabaseObject)
+    {
+        if($sys.Name -eq $systemObject.Name)
+        {
+            $sys = $systemObject
+            break
+        }
+    }
+
+}
+
+
+#endregion /* Helper Functions */
+
+
+#region /* Button Actions */
+
+# runs the import button action
+function RunImportButtonAction()
+{
+    $mainUserSettingsObject.CurrentRoute = @()
+
+    $tempInput = $importTextBox.Text -split '[\r\n]'
+    foreach($item in $tempInput)
+    {
+        if($item -match '\d+\s+\d+\.\d+\s')
+        {
+            $mainUserSettingsObject.CurrentRoute += FindSystemInDataBase "$(($item -split '\d+\s+\d+\.\d+\s')[1])"
+        }
+    }
+
+    UpdateDisplayToCurrentData
+}
+
+# runs the Next button action
+function RunNextButtonAction()
+{
+    #update the system in the DB
+    if($mainUserSettingsObject.AutomarkPlanets)
+    {
+        foreach($item in $mainUserSettingsObject.CurrentSystem.Planets)
+        {
+            $item.Visited = $true
+        }
+    }
+
+    if($mainUserSettingsObject.AutomarkSystem)
+    {
+        $mainUserSettingsObject.CurrentSystem.Visited = $true
+    }
+
+    FindAndReplaceSystem $mainUserSettingsObject.CurrentSystem
+}
+
+# runs the Exit button Action
+function RunExitButtonAction()
+{
+    $mainUserSettingsObject.AutomarkSystem = $automarkStarCheckBox.Checked
+    $mainUserSettingsObject.AutomarkPlanets = $automarkPlanetsCheckBox.Checked
+    $mainUserSettingsObject.SkipVisited = $skipVisitedCheckBox.Checked
+
+    FindAndReplaceSystem $mainUserSettingsObject.CurrentSystem
+
+    SaveMainSystemDatabaseObject
+    SaveMainUserSettingsObject
+
+}
+
+# runs when the skipVisitedCheckBox is clicked
+function OnSkipVisitedCheckBoxClick()
+{
+    $mainUserSettingsObject.SkipVisited = $skipVisitedCheckBox.Checked
+    $numberLeftLabel.Text = "$(GetSystemsLeft)" 
+}
+
+#endregion /* Button Actions */
 
  
 #region /* Windows Forms Functions */
@@ -262,10 +369,10 @@ function MainGUIConstructor()
     $mainForm.MaximizeBox = $false
     $mainForm.KeyPreview = $true
     $mainForm.Add_KeyDown({MainFormKeyDown})
-    $mainForm.ClientSize = New-Object System.Drawing.Size(850,500)
+    $mainForm.ClientSize = New-Object System.Drawing.Size(640,177)
     $mainForm.Text = "ED - Road to Riches Helper"
     $mainForm.Icon = $iconPath
-    $mainForm.Add_FormClosing({SaveMainSystemDatabaseObject; LoadMainUserSettingsObject})
+    $mainForm.Add_FormClosing({RunExitButtonAction})
 
     $systemLabel.Text = $mainUserSettingsObject.CurrentSystem.Name
     $systemLabel.Size = New-Object System.Drawing.Size(300,30)
@@ -273,21 +380,95 @@ function MainGUIConstructor()
     $systemLabel.Font = $labelFontBig
     $mainForm.Controls.Add($systemLabel)
 
-    $systemVisitedCheckbox.Location = New-Object System.Drawing.Point(310,7)
-    $systemVisitedCheckbox.Size = New-Object System.Drawing.Size(20,25)
+    $systemVisitedCheckbox.Location = New-Object System.Drawing.Point(365,7)
+    $systemVisitedCheckbox.Size = New-Object System.Drawing.Size(15,25)
     $systemVisitedCheckbox.Checked = $mainUserSettingsObject.CurrentSystem.Visited
     $mainForm.Controls.Add($systemVisitedCheckbox)
     $sysVisitedLabel = New-Object System.Windows.Forms.Label
     $sysVisitedLabel.Text = "- Visited"
-    $sysVisitedLabel.Size = New-Object System.Drawing.Size(100,25)
-    $sysVisitedLabel.Location = New-Object System.Drawing.Point(330,10)
+    $sysVisitedLabel.Size = New-Object System.Drawing.Size(55,25)
+    $sysVisitedLabel.Location = New-Object System.Drawing.Point(380,10)
     $sysVisitedLabel.Font = $labelFont
     $mainForm.Controls.Add($sysVisitedLabel)
 
-    $planetListDataGridView.Size = New-Object System.Drawing.Size(430,250)
+    $planetListDataGridView.Size = New-Object System.Drawing.Size(430,137)
     $planetListDataGridView.Location = New-Object System.Drawing.Point(5,35)
     $planetListDataGridView.DataSource = $mainUserSettingsObject.CurrentSystem.Planets
+    $planetListDataGridView.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
     $mainForm.Controls.Add($planetListDataGridView)
+
+    $mainDividerGroupBox = New-Object System.Windows.Forms.GroupBox
+    $mainDividerGroupBox.Size = New-Object System.Drawing.Size(2,167)
+    $mainDividerGroupBox.Location = New-Object System.Drawing.Point(445,5)
+    $mainForm.Controls.Add($mainDividerGroupBox)
+
+    $importTextBox.Size = New-Object System.Drawing.Size(100,25)
+    $importTextBox.Location = New-Object System.Drawing.Point(455,7)
+    $importTextBox.Multiline = $true
+    $importTextBox.Text = "$($scriptComboBox.SelectedItem.Description)"
+    $mainForm.Controls.Add($importTextBox)
+
+    $importButton.Size = New-Object System.Drawing.Size(75,25)
+    $importButton.Location = New-Object System.Drawing.Point(560,7)
+    $importButton.Text = "Import"
+    $importButton.Add_Click({RunImportButtonAction})
+    $importButton.Font = $labelFont
+    $mainForm.Controls.Add($importButton)
+
+    $automarkStarCheckBox.Location = New-Object System.Drawing.Point(455,37)
+    $automarkStarCheckBox.Size = New-Object System.Drawing.Size(15,25)
+    $automarkStarCheckBox.Checked = $mainUserSettingsObject.AutomarkSystem
+    $mainForm.Controls.Add($automarkStarCheckBox)
+    $automarkStarLabel = New-Object System.Windows.Forms.Label
+    $automarkStarLabel.Text = "- Automark System Visited"
+    $automarkStarLabel.Size = New-Object System.Drawing.Size(200,25)
+    $automarkStarLabel.Location = New-Object System.Drawing.Point(470,40)
+    $automarkStarLabel.Font = $labelFont
+    $mainForm.Controls.Add($automarkStarLabel)
+
+    $automarkPlanetsCheckBox.Location = New-Object System.Drawing.Point(455,62)
+    $automarkPlanetsCheckBox.Size = New-Object System.Drawing.Size(15,25)
+    $automarkPlanetsCheckBox.Checked = $mainUserSettingsObject.AutomarkPlanets
+    $mainForm.Controls.Add($automarkPlanetsCheckBox)
+    $automarkPlanetsLabel = New-Object System.Windows.Forms.Label
+    $automarkPlanetsLabel.Text = "- Automark Planets Visited"
+    $automarkPlanetsLabel.Size = New-Object System.Drawing.Size(200,25)
+    $automarkPlanetsLabel.Location = New-Object System.Drawing.Point(470,65)
+    $automarkPlanetsLabel.Font = $labelFont
+    $mainForm.Controls.Add($automarkPlanetsLabel)
+
+    $skipVisitedCheckBox.Location = New-Object System.Drawing.Point(455,87)
+    $skipVisitedCheckBox.Size = New-Object System.Drawing.Size(15,25)
+    $skipVisitedCheckBox.Checked = $mainUserSettingsObject.SkipVisited
+    $skipVisitedCheckBox.Add_Click({OnSkipVisitedCheckBoxClick})
+    $mainForm.Controls.Add($skipVisitedCheckBox)
+    $skipVisitedLabel = New-Object System.Windows.Forms.Label
+    $skipVisitedLabel.Text = "- Skip Visited Systems"
+    $skipVisitedLabel.Size = New-Object System.Drawing.Size(200,25)
+    $skipVisitedLabel.Location = New-Object System.Drawing.Point(470,90)
+    $skipVisitedLabel.Font = $labelFont
+    $mainForm.Controls.Add($skipVisitedLabel)
+
+    $numberLeftLabel = New-Object System.Windows.Forms.Label
+    $numberLeftLabel.Text = "$(GetSystemsLeft)"
+    $numberLeftLabel.Size = New-Object System.Drawing.Size(200,25)
+    $numberLeftLabel.Location = New-Object System.Drawing.Point(455,117)
+    $numberLeftLabel.Font = $labelFontBig
+    $mainForm.Controls.Add($numberLeftLabel)
+
+    $nextButton.Size = New-Object System.Drawing.Size(75,25)
+    $nextButton.Location = New-Object System.Drawing.Point(455,147)
+    $nextButton.Text = "Next"
+    $nextButton.Add_Click({RunNextButtonAction})
+    $nextButton.Font = $labelFont
+    $mainForm.Controls.Add($nextButton)
+
+    $exitButton.Size = New-Object System.Drawing.Size(75,25)
+    $exitButton.Location = New-Object System.Drawing.Point(560,147)
+    $exitButton.Text = "Exit"
+    $exitButton.Add_Click({$mainForm.Close()})
+    $exitButton.Font = $labelFont
+    $mainForm.Controls.Add($exitButton)
 
 }
  
