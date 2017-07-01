@@ -120,10 +120,10 @@ $labelFontBig = New-Object System.Drawing.Font("MS Sans Serif", 14)
 $iconPath = "$($PSScriptRoot)\Data\Icon.ico"
 
 # The main Data Objects for the script
-$mainSystemDatabaseObject | Out-Null
+$global:mainSystemDatabaseObject | Out-Null
 
 # The user settings object
-$mainUserSettingsObject | Out-Null
+$global:mainUserSettingsObject | Out-Null
  
 #endregion /* Global Form Objects */
  
@@ -150,9 +150,9 @@ function LoadMainSystemDatabaseObject()
     if(!(Test-Path $dbLocation))
     {
         # If the folder itself does not exist, create it
-        if(!(Test-Path ($dbLocation -replace "\StarSystemDataBase.xml", "")))
+        if(!(Test-Path ($dbLocation -replace "\\StarSystemDataBase.xml", "")))
         {
-            New-Item -ItemType Directory -Path ($dbLocation -replace "\StarSystemDataBase.xml", "") | Out-Null
+            New-Item -ItemType Directory -Path ($dbLocation -replace "\\StarSystemDataBase.xml", "") | Out-Null
         }
 
         $inputFile = (Invoke-WebRequest -Uri "https://drive.google.com/uc?export=download&id=0B-_p8JFokEecZExFS3dxN0RzQ1U").Content | ConvertFrom-Json
@@ -186,7 +186,7 @@ function LoadMainSystemDatabaseObject()
     }
 
     # assuming no error happened the file Exists, so load it
-    $script:mainSystemDatabaseObject = Import-Clixml $dbLocation
+    $mainSystemDatabaseObject = Import-Clixml $dbLocation
 }
 
 # Loads the user settings, or creates one if needed
@@ -198,7 +198,7 @@ function LoadMainUserSettingsObject()
     if(!(Test-Path $userSettingsLocation))
     {
         # If the folder itself does not exist, create it
-        if(!(Test-Path ($userSettingsLocation -replace "\UserSettings.xml", "")))
+        if(!(Test-Path ($userSettingsLocation -replace "\\UserSettings.xml", "")))
         {
             New-Item -ItemType Directory -Path ($userSettingsLocation -replace "\\UserSettings.xml", "") | Out-Null
         }
@@ -206,7 +206,7 @@ function LoadMainUserSettingsObject()
     }
 
     # assuming no error happened the file Exists, so load it
-    $script:mainUserSettingsObject = Import-Clixml $userSettingsLocation
+    $mainUserSettingsObject = Import-Clixml $userSettingsLocation
 }
 
 # Saves the System data.
@@ -214,7 +214,7 @@ function SaveMainSystemDatabaseObject()
 {
     $dbLocation = "C:\Users\$($env:USERNAME)\AppData\Roaming\ED_RtR_Helper\StarSystemDataBase.xml"
 
-    $script:mainSystemDatabaseObject | Export-Clixml $dbLocation
+    $mainSystemDatabaseObject | Export-Clixml $dbLocation
 
 }
 
@@ -223,7 +223,7 @@ function SaveMainUserSettingsObject()
 {
     $userSettingsLocation = "C:\Users\$($env:USERNAME)\AppData\Roaming\ED_RtR_Helper\UserSettings.xml"
 
-    $script:mainUserSettingsObject | Export-Clixml $userSettingsLocation
+    $mainUserSettingsObject | Export-Clixml $userSettingsLocation
 }
  
 #endregion /* XML Communicator Functions */
@@ -236,7 +236,7 @@ function GetSystemsLeft()
     $count = 0
 
     foreach($item in $mainUserSettingsObject.CurrentRoute)
-    {
+    { 
         if($mainUserSettingsObject.SkipVisited)
         {
             if(!$item.Visited)
@@ -277,7 +277,7 @@ function UpdateDisplayToCurrentData()
     $numberLeftLabel.Text = "$(GetSystemsLeft)" 
     $systemLabel.Text = $mainUserSettingsObject.CurrentSystem.Name
     $systemVisitedCheckbox.Checked = $mainUserSettingsObject.CurrentSystem.Visited
-    $planetListDataGridView.DataSource = $mainUserSettingsObject.CurrentSystem.Planets
+    $planetListDataGridView.DataSource = $mainUserSettingsObject.CurrentSystem.Planets   
 }
 
 # finds and replaces the given system in the db
@@ -298,7 +298,7 @@ function FindAndReplaceSystem($systemObject)
 #endregion /* Helper Functions */
 
 
-#region /* Button Actions */
+#region /* Button Actions */ 
 
 # runs the import button action
 function RunImportButtonAction()
@@ -334,7 +334,40 @@ function RunNextButtonAction()
         $mainUserSettingsObject.CurrentSystem.Visited = $true
     }
 
+    #TODO : Update the current System Object with the values in the UI
+
     FindAndReplaceSystem $mainUserSettingsObject.CurrentSystem
+
+    $mainUserSettingsObject.CurrentRoute = $mainUserSettingsObject.CurrentRoute | Where-Object { $_.Name -ne $mainUserSettingsObject.CurrentRoute[0].Name } 
+    
+    if($mainUserSettingsObject.SkipVisited)
+    {
+        while($mainUserSettingsObject.CurrentRoute.Count -gt 0)
+        {
+            if(!$mainUserSettingsObject.CurrentRoute[0].Visited)
+            {
+                $mainUserSettingsObject.CurrentSystem = $mainUserSettingsObject.CurrentRoute[0]
+                break
+            }
+            else
+            {
+               $mainUserSettingsObject.CurrentRoute = $mainUserSettingsObject.CurrentRoute | Where-Object { $_.Name -ne $mainUserSettingsObject.CurrentRoute[0].Name } 
+            }
+        }
+    }
+
+    if($mainUserSettingsObject.CurrentRoute.Count -eq 0)
+    {
+        $mainUserSettingsObject.CurrentSystem.Name = "No System Loaded"
+        $mainUserSettingsObject.CurrentSystem.X = ""
+        $mainUserSettingsObject.CurrentSystem.Y = ""
+        $mainUserSettingsObject.CurrentSystem.Z = ""
+        $mainUserSettingsObject.CurrentSystem.ID = ""
+        $mainUserSettingsObject.CurrentSystem.Visited = $false
+        $mainUserSettingsObject.CurrentSystem.Planets = @()
+    }
+
+    UpdateDisplayToCurrentData
 }
 
 # runs the Exit button Action
@@ -344,9 +377,12 @@ function RunExitButtonAction()
     $mainUserSettingsObject.AutomarkPlanets = $automarkPlanetsCheckBox.Checked
     $mainUserSettingsObject.SkipVisited = $skipVisitedCheckBox.Checked
 
-    FindAndReplaceSystem $mainUserSettingsObject.CurrentSystem
+    if(!($mainUserSettingsObject.CurrentSystem.Name -eq "No System Loaded"))
+    {
+        FindAndReplaceSystem $mainUserSettingsObject.CurrentSystem
+    }
 
-    SaveMainSystemDatabaseObject
+    #SaveMainSystemDatabaseObject
     SaveMainUserSettingsObject
 
 }
@@ -449,7 +485,6 @@ function MainGUIConstructor()
     $skipVisitedLabel.Font = $labelFont
     $mainForm.Controls.Add($skipVisitedLabel)
 
-    $numberLeftLabel = New-Object System.Windows.Forms.Label
     $numberLeftLabel.Text = "$(GetSystemsLeft)"
     $numberLeftLabel.Size = New-Object System.Drawing.Size(200,25)
     $numberLeftLabel.Location = New-Object System.Drawing.Point(455,117)
