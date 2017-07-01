@@ -13,6 +13,9 @@
 |                     Database loading completed.              |
 | 06/29/2017 CHRIALE: Added user settings. started UI.         |
 | 06/30/2017 CHRIALE: Finished UI. Dataobjects not persisting. |
+| 07/01/2017 CHRIALE: Dataobjects fixed. Find/Replace function |
+|                     not replacing.                           |
+| 07/01/2017 CHRIALE: Script is Completed.                     |
 |                                                              |
 ################################################################>
  
@@ -186,7 +189,7 @@ function LoadMainSystemDatabaseObject()
     }
 
     # assuming no error happened the file Exists, so load it
-    $mainSystemDatabaseObject = Import-Clixml $dbLocation
+    return Import-Clixml $dbLocation
 }
 
 # Loads the user settings, or creates one if needed
@@ -206,7 +209,7 @@ function LoadMainUserSettingsObject()
     }
 
     # assuming no error happened the file Exists, so load it
-    $mainUserSettingsObject = Import-Clixml $userSettingsLocation
+    return Import-Clixml $userSettingsLocation
 }
 
 # Saves the System data.
@@ -287,16 +290,23 @@ function FindAndReplaceSystem($systemObject)
     {
         if($sys.Name -eq $systemObject.Name)
         {
-            $sys = $systemObject
-            break
+            $sys.Visited = $systemObject.Visited
+            foreach($sOPlanet in $systemObject.Planets)
+            {
+                foreach($sPnt in $sys.Planets)
+                {
+                    if($sOPlanet.Name -eq $sPnt.Name)
+                    {
+                        $sPnt.Visited = $sOPlanet.Visited
+                    }
+                }
+            }
         }
     }
-
 }
 
 
 #endregion /* Helper Functions */
-
 
 #region /* Button Actions */ 
 
@@ -315,11 +325,25 @@ function RunImportButtonAction()
     }
 
     UpdateDisplayToCurrentData
+
+    if($mainUserSettingsObject.CurrentSystem.Name -ne "No System Loaded")
+    {
+        $mainUserSettingsObject.CurrentSystem.Name | clip.exe
+    }
 }
 
 # runs the Next button action
 function RunNextButtonAction()
 {
+    if($mainUserSettingsObject.CurrentRoute.Count -eq 0)
+    {
+        $numberLeftLabel.Text = "No Route Entered"
+        return
+    }
+    $mainUserSettingsObject.AutomarkSystem = $automarkStarCheckBox.Checked
+    $mainUserSettingsObject.AutomarkPlanets = $automarkPlanetsCheckBox.Checked
+    $mainUserSettingsObject.SkipVisited = $skipVisitedCheckBox.Checked
+
     #update the system in the DB
     if($mainUserSettingsObject.AutomarkPlanets)
     {
@@ -328,13 +352,29 @@ function RunNextButtonAction()
             $item.Visited = $true
         }
     }
+    else
+    {
+        foreach($dataPlanet in $planetListDataGridView.Rows)
+        {
+            foreach($item in $mainUserSettingsObject.CurrentSystem.Planets)
+            {
+                if($item.Name -eq $dataPlanet.Cells[0].Value)
+                {
+                    $item.Visited = $dataPlanet.Cells[4].Value
+                }
+            }
+        }
+    }
 
     if($mainUserSettingsObject.AutomarkSystem)
     {
         $mainUserSettingsObject.CurrentSystem.Visited = $true
     }
+    else
+    {
+        $mainUserSettingsObject.CurrentSystem.Visited = $systemVisitedCheckbox.Checked
+    }
 
-    #TODO : Update the current System Object with the values in the UI
 
     FindAndReplaceSystem $mainUserSettingsObject.CurrentSystem
 
@@ -368,6 +408,8 @@ function RunNextButtonAction()
     }
 
     UpdateDisplayToCurrentData
+
+    $mainUserSettingsObject.CurrentSystem.Name | Clip.exe
 }
 
 # runs the Exit button Action
@@ -377,12 +419,7 @@ function RunExitButtonAction()
     $mainUserSettingsObject.AutomarkPlanets = $automarkPlanetsCheckBox.Checked
     $mainUserSettingsObject.SkipVisited = $skipVisitedCheckBox.Checked
 
-    if(!($mainUserSettingsObject.CurrentSystem.Name -eq "No System Loaded"))
-    {
-        FindAndReplaceSystem $mainUserSettingsObject.CurrentSystem
-    }
-
-    #SaveMainSystemDatabaseObject
+    SaveMainSystemDatabaseObject
     SaveMainUserSettingsObject
 
 }
@@ -394,8 +431,16 @@ function OnSkipVisitedCheckBoxClick()
     $numberLeftLabel.Text = "$(GetSystemsLeft)" 
 }
 
-#endregion /* Button Actions */
+# runs when a cell in the planets grid is clicked
+function RunPlanetCellClicked()
+{
+    if($_.ColumnIndex -eq 4)
+    {
+        $planetListDataGridView.Rows[$_.RowIndex].Cells[4].Value = !($planetListDataGridView.Rows[$_.RowIndex].Cells[4].Value)
+    }
+}
 
+#endregion /* Button Actions */
  
 #region /* Windows Forms Functions */
  
@@ -404,7 +449,6 @@ function MainGUIConstructor()
     $mainForm.FormBorderStyle = 'Fixed3D'
     $mainForm.MaximizeBox = $false
     $mainForm.KeyPreview = $true
-    #$mainForm.Add_KeyDown({MainFormKeyDown})
     $mainForm.ClientSize = New-Object System.Drawing.Size(640,177)
     $mainForm.Text = "ED - Road to Riches Helper"
     $mainForm.Icon = $iconPath
@@ -431,6 +475,8 @@ function MainGUIConstructor()
     $planetListDataGridView.Location = New-Object System.Drawing.Point(5,35)
     $planetListDataGridView.DataSource = $mainUserSettingsObject.CurrentSystem.Planets
     $planetListDataGridView.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
+    $planetListDataGridView.Add_CellClick({RunPlanetCellClicked})
+    $planetListDataGridView.ReadOnly = $true
     $mainForm.Controls.Add($planetListDataGridView)
 
     $mainDividerGroupBox = New-Object System.Windows.Forms.GroupBox
@@ -513,9 +559,15 @@ function MainGUIConstructor()
 
 #HideConsole
 
-LoadMainSystemDatabaseObject
+$mainSystemDatabaseObject = LoadMainSystemDatabaseObject
 
-LoadMainUserSettingsObject
+$mainUserSettingsObject = LoadMainUserSettingsObject
+
+# copy the first Item to the clip board if it is not empty
+if($mainUserSettingsObject.CurrentSystem.Name -ne "No System Loaded")
+{
+    $mainUserSettingsObject.CurrentSystem.Name | clip.exe
+}
  
 MainGUIConstructor
  
