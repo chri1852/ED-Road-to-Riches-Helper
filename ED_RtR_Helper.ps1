@@ -281,7 +281,7 @@ function UpdateDisplayToCurrentData()
 }
 
 # finds and replaces the given system in the db
-funciton FindAndReplaceSystem($systemObject)
+function FindAndReplaceSystem($systemObject)
 {
     foreach($sys in $mainSystemDatabaseObject)
     {
