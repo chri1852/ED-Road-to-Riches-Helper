@@ -368,7 +368,7 @@ function MainGUIConstructor()
     $mainForm.FormBorderStyle = 'Fixed3D'
     $mainForm.MaximizeBox = $false
     $mainForm.KeyPreview = $true
-    $mainForm.Add_KeyDown({MainFormKeyDown})
+    #$mainForm.Add_KeyDown({MainFormKeyDown})
     $mainForm.ClientSize = New-Object System.Drawing.Size(640,177)
     $mainForm.Text = "ED - Road to Riches Helper"
     $mainForm.Icon = $iconPath
