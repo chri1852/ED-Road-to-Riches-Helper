@@ -12,7 +12,7 @@
 | 06/28/2017 CHRIALE: Created Script.                          |
 |                     Database loading completed.              |
 | 06/29/2017 CHRIALE: Added user settings. started UI.         |
-| 06/30/2017 CHRIALE: Finished UI.                             |
+| 06/30/2017 CHRIALE: Finished UI. Dataobjects not persisting. |
 |                                                              |
 ################################################################>
  
@@ -120,10 +120,10 @@ $labelFontBig = New-Object System.Drawing.Font("MS Sans Serif", 14)
 $iconPath = "$($PSScriptRoot)\Data\Icon.ico"
 
 # The main Data Objects for the script
-$global:mainSystemDatabaseObject | Out-Null
+$mainSystemDatabaseObject | Out-Null
 
 # The user settings object
-$global:mainUserSettingsObject | Out-Null
+$mainUserSettingsObject | Out-Null
  
 #endregion /* Global Form Objects */
  
@@ -150,9 +150,9 @@ function LoadMainSystemDatabaseObject()
     if(!(Test-Path $dbLocation))
     {
         # If the folder itself does not exist, create it
-        if(!(Test-Path ($dbLocation -replace "\\StarSystemDataBase.xml", "")))
+        if(!(Test-Path ($dbLocation.Replace("\StarSystemDataBase.xml", ""))))
         {
-            New-Item -ItemType Directory -Path ($dbLocation -replace "\\StarSystemDataBase.xml", "") | Out-Null
+            New-Item -ItemType Directory -Path ($dbLocation.Replace("\StarSystemDataBase.xml", "")) | Out-Null
         }
 
         $inputFile = (Invoke-WebRequest -Uri "https://drive.google.com/uc?export=download&id=0B-_p8JFokEecZExFS3dxN0RzQ1U").Content | ConvertFrom-Json
@@ -198,9 +198,9 @@ function LoadMainUserSettingsObject()
     if(!(Test-Path $userSettingsLocation))
     {
         # If the folder itself does not exist, create it
-        if(!(Test-Path ($userSettingsLocation -replace "\\UserSettings.xml", "")))
+        if(!(Test-Path ($userSettingsLocation.replace("\UserSettings.xml",""))))
         {
-            New-Item -ItemType Directory -Path ($userSettingsLocation -replace "\\UserSettings.xml", "") | Out-Null
+            New-Item -ItemType Directory -Path ($userSettingsLocation.replace("\UserSettings.xml", "")) | Out-Null
         }
         NewUserSettingsObject | Export-Clixml $userSettingsLocation
     }
