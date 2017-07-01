@@ -418,6 +418,7 @@ function RunExitButtonAction()
     $mainUserSettingsObject.AutomarkSystem = $automarkStarCheckBox.Checked
     $mainUserSettingsObject.AutomarkPlanets = $automarkPlanetsCheckBox.Checked
     $mainUserSettingsObject.SkipVisited = $skipVisitedCheckBox.Checked
+    $mainUserSettingsObject.CurrentSystem.Visited = $systemVisitedCheckbox.Checked
 
     SaveMainSystemDatabaseObject
     SaveMainUserSettingsObject
@@ -557,7 +558,7 @@ function MainGUIConstructor()
  
 <#--- Main Script Function ---#>
 
-#HideConsole
+ HideConsole
 
 $mainSystemDatabaseObject = LoadMainSystemDatabaseObject
 
