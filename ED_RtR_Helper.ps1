@@ -9,13 +9,13 @@
 |--------------------------------------------------------------|
 | Update History                                               |
 |                                                              |
-| 06/28/2017 CHRIALE: Created Script.                          |
-|                     Database loading completed.              |
-| 06/29/2017 CHRIALE: Added user settings. started UI.         |
-| 06/30/2017 CHRIALE: Finished UI. Dataobjects not persisting. |
-| 07/01/2017 CHRIALE: Dataobjects fixed. Find/Replace function |
-|                     not replacing.                           |
-| 07/01/2017 CHRIALE: Script is Completed.                     |
+| 06/28/2017 AC: Created Script. Database loading completed.   |
+| 06/29/2017 AC: Added user settings. started UI.              |
+| 06/30/2017 AC: Finished UI. Dataobjects not persisting.      |
+| 07/01/2017 AC: Dataobjects fixed. Find/Replace function not  |
+|                replacing.                                    |
+| 07/01/2017 AC: Script is Completed.                          |
+| 07/04/2017 AC: Added startup config function.                |
 |                                                              |
 ################################################################>
  
@@ -305,6 +305,16 @@ function FindAndReplaceSystem($systemObject)
     }
 }
 
+# runs some setup stuff on program launch
+function RunInitialConfiguration()
+{
+    # copy the first Item to the clip board if it is not empty
+    if($mainUserSettingsObject.CurrentSystem.Name -ne "No System Loaded")
+    {
+        $mainUserSettingsObject.CurrentSystem.Name | clip.exe
+    }
+}
+
 
 #endregion /* Helper Functions */
 
@@ -558,17 +568,13 @@ function MainGUIConstructor()
  
 <#--- Main Script Function ---#>
 
- HideConsole
+HideConsole
 
 $mainSystemDatabaseObject = LoadMainSystemDatabaseObject
 
 $mainUserSettingsObject = LoadMainUserSettingsObject
 
-# copy the first Item to the clip board if it is not empty
-if($mainUserSettingsObject.CurrentSystem.Name -ne "No System Loaded")
-{
-    $mainUserSettingsObject.CurrentSystem.Name | clip.exe
-}
+RunInitialConfiguration
  
 MainGUIConstructor
  
